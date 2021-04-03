@@ -1,0 +1,288 @@
+---
+title: "Analysis of 20,000 Chess Games"
+author: "Nadrata"
+date: "XX/XX/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+## install and load the necessary packages
+install.packages("knitr")
+library(tidyverse)
+library(janitor)
+library(skimr)
+library(kableExtra)
+library(jtools)
+
+```
+
+*Note*: If you try to Knit this document at this time, you *will* get an error because there is code in this document that has to be edited (by you!) before it will be able to successfully knit!
+
+### GitHub Setup
+
+To get started, you'll want to go to GitHub and start a new repository:
+
+- Call this repository `final_project`. 
+- Add a short description
+- Check the box to "Initialize this repository with a README. 
+- Click `Create Repository`
+
+Once the repository has been created, Click on `Clone or download` and copy the "Clone with HTTPS" link provided. You'll use this to clone your repo in RStudio Cloud. Refer to the materials in this course if you're stuck on this part of the project.
+
+### Directory Setup
+
+In your project, create folders with the following structure:
+
+- data/
+  - raw_data/
+  - tidy_data/
+- code/
+  - raw_code/
+  - final_code/
+- figures/
+  - exploratory_figures/
+  - explanatory_figures/
+- products/
+  - writing/
+
+Upload the data file into the tidy_data folder and this .Rmd file into the final_code folder.
+
+Once the .Rmd document is in the correct folder, you'll want to **change the author of this document** to your name at the top of the .Rmd document (in the YAML). Save this change before moving to the next step. Refer to the materials in this course if you're stuck on this part of the project.
+
+
+### The data
+
+This is a set of just over 20,000 games collected from a selection of users and can be downloaded at [https://www.kaggle.com/datasnaek/chess](https://www.kaggle.com/datasnaek/chess). The variables in the data are:
+
+* Game ID
+* Rated (T/F)
+* Start Time
+* End Time
+* Number of Turns
+* Game Status
+* Winner
+* Time Increment
+* White Player ID
+* White Player Rating
+* Black Player ID
+* Black Player Rating
+* All Moves in Standard Chess Notation
+* Opening Eco (Standardised Code for any given opening)
+* Opening Name
+* Opening Ply (Number of moves in the opening phase)
+
+Let's get to the project. Make sure you have loaded the necessary packages for this project. `tidyverse`, `skimr`, `janitor`, and `gridExtra` are suggested but you can edit any other package that you use there.
+
+### Importing data
+
+Import the data into R using the `readr` package and then use the package `janitor` to clean the column names. Write your code in the code chunk below.
+
+
+```{r}
+
+chess = read_csv("/cloud/project/Capstone_project/data/raw_data/games.csv") %>% 
+    clean_names()
+```
+
+
+
+### Exploratory Analysis of Chess
+
+How many observations are in the data? Write your code in the chunk below.
+there are 20058 observations
+```{r}
+dim(chess)
+
+```
+
+
+Although there are so many played games in the data, in a majority of them the players resign so the game doesn't end. For the purpose of this project, we don't need those observations. Remove them from the data and save the new dataframe to an object called `finished_games`.
+
+```{r}
+finished_games <- chess %>% 
+    filter(victory_status!="resign")
+```
+
+Now, how many observations are left. Write the code below:
+
+```{r}
+nrow(finished_games)
+
+```
+
+Is there any missing values in your data. Write the code to check this in the code chunk below:
+
+```{r}
+sum(is.na(finished_games))
+summary(finished_games)
+```
+
+Use ggplot to show a histogram of the number of turns in the finished games.
+
+```{r}
+finished_games %>% 
+    ggplot(aes(x=turns,)) +
+    geom_histogram(bins = 30)
+```
+
+What is the average and median of the number of turns? Write your code below. You can use the package `skimr`.
+The mean is 68.7 and the median is 62.
+```{r}
+library(skimr)
+skim(finished_games$turns)
+median(finished_games$turns)
+```
+
+
+The first-move advantage in chess is the inherent advantage of the player (White) who makes the first move in chess. Chess players and theorists generally agree that White begins the game with some advantage. Since 1851, compiled statistics support this view; White consistently wins slightly more often than Black, usually scoring between 52 and 56 percent. White's winning percentage is about the same for tournament games between humans and games between computers.
+
+Does your data support this hypothesis? Show this in a pie chart. In your pie chart, change the color of the `white` group to white, the color of the `black` group to black, and the color of the `draw` group to grey.
+
+```{r}
+as.data.frame(table(finished_games$winner)) %>%
+    ggplot(aes(x="white_rating",)) +
+    geom_bar() + 
+    coord_polar() +
+    scale_fill_manual(values=c("white","black","grey"))
+```
+
+
+A chess opening or simply an opening refers to the initial moves of a chess game. The term can refer to the initial moves by either side, White or Black, but an opening by Black may also be known as a defense. There are dozens of different openings, and hundreds of variants. The Oxford Companion to Chess lists 1,327 named openings and variants. Chess openings have changed over time as well.
+
+In your data, what are the most popular opening moves? Show a bar plot using ggplot that on the vertical axis you have the top 10 most popular openings and on the horizontal axis you have the frequency of each opening in your data. Sort the opening names based on the frequency in the data from high to low.
+
+
+```{r}
+finished_games %>% 
+    group_by(opening_name) %>% 
+    summarise(lol=n()) %>% 
+    arrange(opening_name) %>% 
+    top_n(10) %>% 
+    ggplot(aes(x=opening_name,y=lol)) +
+    geom_col() +
+    coord_flip() +
+    theme_minimal()
+```
+
+
+
+In another bar plot, show what percentage of the games started with each of the top 10 opening strategies are won by white and what percentage are won by white. Which opening strategies would be the best for white to win? In your `geom_bar()` function, use the argument `position = "fill"` for having bars with the same height.
+
+what variables can measure percentages?
+i can used the "rated" variable to determine the percentages
+```{r}
+finished_games %>% 
+    filter(winner!="draw") %>% 
+    group_by(winner, opening_name) %>% 
+    summarise(wow=n()) %>% 
+    arrange(desc(wow)) %>% 
+    top_n(10) %>% 
+    ggplot(aes(x=opening_name,y=wow,fill=winner)) +
+    geom_bar(position = "fill",stat = "identity") +
+    coord_flip() +
+    theme_minimal()
+```
+
+
+Depending on the opening games, games can have different lengths (in terms of the number of turns). Show another bar plot that shows the the average number of turns for different opening strategies. Games based on which opening strategy on average take the longest?
+
+group_by is used for collapsing data.
+i wants the number of turns(its completed when both parties of the game play)
+```{r}
+finished_games %>% 
+    group_by(opening_name) %>% 
+    summarise(wow=mean(turns)) %>% 
+    arrange(desc(wow)) %>% 
+    head(10) %>%
+    ggplot(aes(x=opening_name, y=wow)) +
+    geom_bar(stat = "identity") +
+    coord_flip() +
+    theme_minimal()
+```
+
+
+
+## Reshaping data
+
+In the data, users are rated based on their previous games. The higher the rating the better the player is. In the data you currently have, each row is a game. Create a new data frame in which each row is a player and there are five columns: the color of the player, their rating, number of turns, the opening ply, and whether they lost of won (won = 1 and lost = 0). Call this new data frame `players`. Note that you should first remove the games that end as draw.
+
+i want to create a new data frame with only 5 columns out of the entire data set. i would have to filter out significant variables first to achieve my goal.
+
+
+```{r}
+players = finished_games %>% 
+    filter(winner!="draw") %>%
+    select(turns,opening_ply,black_rating,white_rating,winner) %>% gather(key="players",value="winner",turns,opening_ply,white_rating,black_rating) %>% 
+    mutate(win =1,lost=0)
+```
+
+
+How many rows are in the new data frame? Why is it more than the previous data frame?
+
+```{r}
+dim(players)
+```
+
+Using the data you just created, show two denisty functions (using geom_density) of ratings on the same graph: one for the winners and one for the losers ignoring the games that end as draw. Are the winners' ratings higher than the losers?
+
+```{r}
+finished_games %>% 
+    ggplot(aes(x=winner)) +
+    geom_density(alpha = 0.5)
+```
+
+
+Filter your players data to only include those who won. Do you find a correlation between the player's rating and the number of turns it takes them to win? Find the correlation coefficient and show this in a scatter plot. Do you see a high correlation?
+ am tying to find a relationship between the player's rating and number of turns by specifying only winners of the game.
+```{r}
+winners = finished_games %>% 
+    filter(winner!="draw")
+cor(use = "players",method = "winner")
+winners %>% 
+    ggplot(aes(players,y=winner)) +
+    geom_point(alpha = 0.5)
+```
+
+
+### Regression Analysis
+
+Read the lesson on inferential analysis. We are using linear regression to find what factors determine the probability of winning a game. Use the variable indicating whether the player wins or not as the dependent variables (Y) and rating, color of the player's piece, and the opening ply. Make sure to use the color as factor.
+
+```{r}
+model = lm(winner~turns,data = players)
+summ(model)
+```
+
+Answer the following questions based on your regression result.
+
+* Does the player's rating matter in their winning chances?
+* Does whether the player starts a game or not affect their chances of winning the game?
+* Are the opening ply affect the chances of winning a game?
+
+## Final Steps
+
+Congratulations! You have completed the project. There are a few final notes:
+
+### Add Markdown Text to .Rmd
+
+Before finalizing your project you'll want be sure there are **comments in your code chunks** and **text outside of your code chunks** to explain what you're doing in each code chunk. These explanations are incredibly helpful for someone who doesn't code or someone unfamiliar to your project.
+
+
+### Knit your R Markdown Document
+
+Last but not least, you'll want to **Knit your .Rmd document into an HTML document**. If you get an error, take a look at what the error says and edit your .Rmd document. Then, try to Knit again! Troubleshooting these error messages will teach you a lot about coding in R.
+
+### A Few Final Checks
+
+A complete project should have:
+
+- Completed code chunks throughout the .Rmd document (your RMarkdown document should Knit without any error)
+- Comments in your code chunks
+- Answered all questions throughout this exercise.
+
+### Final `push` to GitHub
+
+Now that you've finalized your project, you'll do one final **push to GitHub**. `add`, `commit`, and `push` your work to GitHub. At the end, submit the link to your github repository to us through Slack.
+
+
